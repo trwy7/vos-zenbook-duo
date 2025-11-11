@@ -86,14 +86,14 @@ stages:
     - export HOWDY_NO_PROMPT=true
     - wget https://bootstrap.pypa.io/get-pip.py -O /tmp/get-pip.py
     - python3 /tmp/get-pip.py
-    - python3 -m pip config set global.break-system-packages true
-    - python3 -m pip install dlib
+    - pip3 config set global.break-system-packages true
+    - pip3 install dlib
     - mkdir -p /etc/howdy
     - echo -e "[video]\ndevice_path = /dev/null\ncertainty = 3" > /etc/howdy.ini
     - wget https://github.com/boltgolt/howdy/releases/download/v2.6.1/howdy_2.6.1.deb -O /tmp/howdy_2.6.1.deb
     - dpkg -i --ignore-depends=python3-pip /tmp/howdy_2.6.1.deb || true
     - apt install -f -y
-    - python3 -m pip config set global.break-system-packages false
+    - pip3 config set global.break-system-packages false
 
   - name: bibata-cursor
     type: shell
