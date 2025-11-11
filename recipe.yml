@@ -1,5 +1,5 @@
-name: Custom Vanilla Desktop # Replace this name with your image name
-id: custom # Replace this ID with your image ID
+name: VOS for Zenbook Duo # Replace this name with your image name
+id: voszenbookduo # Replace this ID with your image ID
 stages:
 - id: build
   base: ghcr.io/vanilla-os/desktop:main # Optionally, Replace this image URL with a different one i.e. nvidia:main, etc
@@ -23,16 +23,144 @@ stages:
 
   # Put your custom actions below this comment
 
-  - name: example-packages # Sample module using the built-in Apt module to install packages
+  - name: setup-dependencies # Installs dependencies required for further modules
     type: apt
     source:
       packages:
-      - vim
+      - ca-certificates
+      - curl
+      - dkms
+      - meson
+      - pkg-config
+      - libcairo2-dev
+      - python3
+      - python3-usb
+      - iio-sensor-proxy
+      - usbutils
+      - inotify-tools
+      - git 
+      - libevdev2
+      - python3-libevdev
 
-  - name: example-commands # Sample module demonstrating the Shell module with custom commands
+  - name: setup-apt-sources # Sets up sources for apt packages
     type: shell
     commands:
-    - echo Example output
+    - install -m 0755 -d /etc/apt/keyrings
+    - install -m 0755 -d /usr/share/keyrings
+    # Tailscale
+    - curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
+    - curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list
+    # Docker
+    - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    - chmod a+r /etc/apt/keyrings/docker.asc
+    - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    # Finalize
+    - apt-get update
+
+  - name: install-apt-packages # Installs apt packages
+    type: apt
+    source:
+      packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+      - tailscale
+
+  - name: howdy-dependencies
+    type: apt
+    source:
+      packages:
+      - python3-dev 
+      - libopencv-dev
+      - cmake
+      - build-essential
+      - libpam-python
+
+  - name: howdy-install
+    type: shell
+    commands:
+    - export DEBIAN_FRONTEND=noninteractive
+    - export HOWDY_NO_PROMPT=true
+    - wget https://bootstrap.pypa.io/get-pip.py -O /tmp/get-pip.py
+    - python3 /tmp/get-pip.py
+    - python3 -m pip config set global.break-system-packages true
+    - python3 -m pip install dlib
+    - python3 -m pip config set global.break-system-packages false
+    - mkdir -p /etc/howdy
+    - echo -e "[video]\ndevice_path = /dev/null\ncertainty = 3" > /etc/howdy.ini
+    - wget https://github.com/boltgolt/howdy/releases/download/v2.6.1/howdy_2.6.1.deb -O /tmp/howdy_2.6.1.deb
+    - dpkg -i --ignore-depends=python3-pip /tmp/howdy_2.6.1.deb || true
+    - apt install -f -y
+
+  - name: bibata-cursor
+    type: shell
+    commands:
+    - mkdir -p /usr/share/icons/bibata
+    - wget https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Classic.tar.xz -O /tmp/Bibata-Modern-Classic.tar.xz
+    - tar -xf /tmp/Bibata-Modern-Classic.tar.xz -C /usr/share/icons/bibata
+
+  - name: apply-plymouth-theme
+    type: shell
+    commands:
+    - update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/treyspinner/treyspinner.plymouth 100
+    - update-alternatives --set default.plymouth /usr/share/plymouth/themes/treyspinner/treyspinner.plymouth
+    - update-initramfs -u
+
+  - name: asus-wmi-screenpad
+    type: shell
+    commands:
+    - mkdir /usr/src/asus-wmi-1.0
+    - cd /usr/src/asus-wmi-1.0
+    - wget 'https://github.com/Plippo/asus-wmi-screenpad/archive/master.zip'
+    - unzip master.zip
+    - mv asus-wmi-screenpad-master/* .
+    - rmdir asus-wmi-screenpad-master
+    - rm master.zip
+    - sed -i "2s/.*/VERSION=`cat /usr/share/vanilla/kernel-version | grep -o '^[0-9]\+\.[0-9]\+'`/" prepare-for-current-kernel.sh # Make sure it wont prepare the wrong kernel
+    - sh prepare-for-current-kernel.sh
+    - echo Using kernel -k $(cat /usr/share/vanilla/kernel-version)
+    - dkms add -m asus-wmi -v 1.0 -k $(cat /usr/share/vanilla/kernel-version)
+    - dkms build -m asus-wmi -v 1.0 -k $(cat /usr/share/vanilla/kernel-version)
+    - dkms install -m asus-wmi -v 1.0 -k $(cat /usr/share/vanilla/kernel-version)
+
+  - name: gnome-monitor-config
+    type: shell
+    commands:
+    - mkdir /tmp/gnome-monitor-config
+    - cd /tmp/gnome-monitor-config
+    - wget 'https://github.com/jadahl/gnome-monitor-config/archive/master.zip'
+    - unzip master.zip
+    - mv gnome-monitor-config-master/* .
+    - rmdir gnome-monitor-config-master
+    - rm master.zip
+    - meson build
+    - cd build
+    - meson compile
+    - cp src/gnome-monitor-config /usr/bin/gnome-monitor-config
+    - chmod a+rx /usr/bin/gnome-monitor-config
+
+  - name: zenbook-duo-2024-tools
+    type: shell
+    commands:
+    - git clone https://github.com/alesya-h/zenbook-duo-2024-ux8406ma-linux /tmp/duotools
+    - cp /tmp/duotools/duo /usr/bin/duo
+    - chmod a+rx /usr/bin/duo
+    - sed -i 's/card1-eDP-2-backlight/card0-eDP-2-backlight/' /usr/bin/duo # Fix the backlight path, make an issue if this is wrong.
+    - systemctl enable batterylimit.service # Limits the battery
+    - systemctl enable brightnesssync.service # Syncs the display brightness
+    - cp /tmp/duotools/bk.py /usr/bin/bk.py # Copy bk.py
+    - chmod a+rx /usr/bin/bk.py # Make bk.py executable
+
+  - name: asus-pen-2
+    type: shell
+    commands:
+    - git clone https://github.com/asus-linux-drivers/asus-stylus-driver /tmp/asus-stylus-driver
+    - cd /tmp/asus-stylus-driver
+    - sed -i 's/systemctl daemon-reload/echo not reloading/' install.sh
+    - sed -i 's/systemctl restart asus-stylus/echo not reloading/' install.sh
+    - ./install.sh
 
   - name: example-modules # Sample module demonstrating importing local and remote modules
     type: includes

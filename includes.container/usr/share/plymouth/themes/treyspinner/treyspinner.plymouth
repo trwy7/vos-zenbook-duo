@@ -1,0 +1,9 @@
+[Plymouth Theme]
+Name=treyspinner
+Description=Custom boot animation
+Comment=Original script By Aditya Shakya (@adi1090x)
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/treyspinner
+ScriptFile=/usr/share/plymouth/themes/treyspinner/treyspinner.script
