@@ -1,0 +1,8 @@
+[Unit]
+Description=Zenbook Duo Battery limit service
+
+[Service]
+ExecStart=/bin/bash /usr/bin/batterylimit
+
+[Install]
+WantedBy=multi-user.target
