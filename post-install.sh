@@ -1,0 +1,1 @@
+host-shell duo set-tablet-mapping 
